@@ -2,12 +2,12 @@
 
 'use strict';
 
-import request, { Response } from 'sync-request';
 import { util } from './util';
 import { Command } from 'commander';
 import { runDeployment } from './deployment';
 import { runChecks } from './check';
 import { runArgs } from './runArgs';
+import axios, {AxiosResponse} from "axios";
 
 export namespace grafana {
     /**
@@ -48,13 +48,13 @@ export namespace grafana {
      *
      * @param folderName - the folder name.
      */
-    export function getFolderId(folderName: string): Number {
-        const res: Response = get('/api/folders');
-        if (res.isError()) {
-            util.reportAndFail('call to get folders failed', getResponseError(res));
+    export async function getFolderId(folderName: string): Promise<number> {
+        const r: AxiosResponse = await get('/api/folders');
+        if (r.status !== 200) {
+            util.reportAndFail('call to get folders failed', getResponseError(r));
         }
 
-        const folders: any[] = JSON.parse(res.getBody('utf8'));
+        const folders: any[] = r.data;
         const folder: any = folders.find((p) => {
             return p['title'] === folderName;
         });
@@ -66,16 +66,16 @@ export namespace grafana {
      *
      * @param uid - the dashboard's uid.
      */
-    export function getDashboard(uid: string): any {
-        const res: Response = get('/api/dashboards/uid/'.concat(uid));
-        if (res.isError()) {
-            if (res.statusCode === 404) {
+    export async function getDashboard(uid: string): Promise<any> {
+        const r: AxiosResponse = await get('/api/dashboards/uid/'.concat(uid));
+        if (r.status !== 200) {
+            if (r.status === 404) {
                 return undefined;
             }
-            util.reportAndFail('call to get dashboard failed', getResponseError(res));
+            util.reportAndFail('call to get dashboard failed', getResponseError(r));
         }
 
-        return JSON.parse(res.getBody('utf8'))['dashboard'];
+        return r.data['dashboard'];
     }
 
     /**
@@ -84,12 +84,12 @@ export namespace grafana {
      * @param folderName - the folder name.
      */
     export function createFolder(folderName: string): number {
-        const res: Response = post('/api/folders', { title: folderName });
-        if (res.isError()) {
+        const res: AxiosResponse = post('/api/folders', { title: folderName });
+        if (res.status !== 200) {
             util.reportAndFail('create folder failed', getResponseError(res));
         }
 
-        const folder: any = JSON.parse(res.getBody('utf8'));
+        const folder: any = JSON.parse(res.data);
         return folder['id'];
     }
 
@@ -100,12 +100,12 @@ export namespace grafana {
      * @param folderId - the folder id that holds the dashboard.
      */
     export function importDashboard(dashboardContent: any, folderId: number): void {
-        const res: Response = post('/api/dashboards/import', {
+        const res: AxiosResponse = post('/api/dashboards/import', {
             dashboard: dashboardContent,
             overwrite: true,
             folderId: folderId,
         });
-        if (res.isError()) {
+        if (res.status !== 200) {
             util.reportAndFail('import dashboard failed', getResponseError(res));
         }
     }
@@ -116,12 +116,12 @@ export namespace grafana {
  *
  * @param path - the path.
  */
-function get(path: string): Response {
-    return request('GET', 'http://'.concat(util.getGrafanaHost(), path), {
-        headers: {
-            Authorization: getAuthorization(),
-        },
-    });
+async function get(path: string): Promise<AxiosResponse> {
+    return await axios.get('http://'.concat(util.getGrafanaHost(), path), {
+            headers: {
+                Authorization: getAuthorization(),
+            },
+        });
 }
 
 /**
@@ -130,15 +130,17 @@ function get(path: string): Response {
  * @param path - the path.
  * @param data - the data to post.
  */
-function post(path: string, data: any): Response {
-    return request('POST', 'http://'.concat(util.getGrafanaHost(), path), {
+// @ts-ignore
+function post(path: string, data: any): AxiosResponse {
+    axios.post('http://'.concat(util.getGrafanaHost(), path), data, {
         headers: {
             Accept: 'application/json',
             Authorization: getAuthorization(),
             'Content-Type': 'application/json',
-        },
-        json: data,
-    });
+        }
+    }).then(r => {
+        return r
+    })
 }
 
 /**
@@ -153,6 +155,6 @@ function getAuthorization(): string {
  *
  * @param res - the failing {@link Response}
  */
-function getResponseError(res: Response): any {
-    return { statusCode: String(res.statusCode), body: res.body.toString('utf8') };
+function getResponseError(res: AxiosResponse): any {
+    return { statusCode: String(res.status), body: res.data };
 }

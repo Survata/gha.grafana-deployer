@@ -26,9 +26,9 @@ export function runDeployment(sourcePath: string): void {
  * @param sourcePath - the deployment source path.
  * @param folder - the folder to deploy.
  */
-function deployFolder(sourcePath: string, folder: string): void {
+async function deployFolder(sourcePath: string, folder: string) {
     console.log('Deploying folder', folder);
-    let folderId: Number = grafana.getFolderId(folder);
+    let folderId: Number = await grafana.getFolderId(folder);
 
     // deploy the folder, create it if it doesn't exist
     if (folderId === undefined) {
@@ -52,7 +52,7 @@ function deployFolder(sourcePath: string, folder: string): void {
  * @param folderId - the grafana folder id.
  * @param file - the dashboard file to deploy.
  */
-function deployDashboard(sourcePath: string, folder: string, folderId: number, file: string): void {
+async function deployDashboard(sourcePath: string, folder: string, folderId: number, file: string) {
     console.log('Deploying dashboard', file);
     const key: string = folder.concat('/', file);
 
@@ -62,7 +62,7 @@ function deployDashboard(sourcePath: string, folder: string, folderId: number, f
     const uid: string = dashboardJson['uid'];
 
     // get the dashboard that is in grafana
-    const grafanaDashboard: any = grafana.getDashboard(uid);
+    const grafanaDashboard: any = await grafana.getDashboard(uid);
 
     // deploy the dashboard, create it if it doesn't exist or update it if it's changed
     if (grafanaDashboard === undefined) {
