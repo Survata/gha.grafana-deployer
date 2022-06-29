@@ -1,0 +1,158 @@
+// Copyright (c) 2021 Upwave, All Rights Reserved
+
+'use strict';
+
+import request, { Response } from 'sync-request';
+import { util } from './util';
+import { Command } from 'commander';
+import { runDeployment } from './deployment';
+import { runChecks } from './check';
+import { runArgs } from './runArgs';
+
+export namespace grafana {
+    /**
+     * Sets up the Command.
+     *
+     * @param program
+     */
+    export function setupCommand(program: Command) {
+        program
+            .command('deploy', { isDefault: true })
+            .description('deploys to grafana')
+            .option('-d, --dry-run', 'performs a dry run of the deployment')
+            .option('-s, --sourcePath <path>', 'specifies the source path to deploy', './monitoring')
+            .action((options) => {
+                const args: runArgs = {
+                    dryRun: util.isTrue(options.dryRun),
+                    sourcePath: options.sourcePath,
+                };
+                run(args);
+            });
+    }
+
+    /**
+     * Runs the Command.
+     *
+     * @param args
+     */
+    export function run(args: runArgs): void {
+        runChecks(args.sourcePath);
+        if (!args.dryRun) {
+            runDeployment(args.sourcePath);
+        }
+        console.log('Run succeeded');
+    }
+
+    /**
+     * Gets a grafana folder id by name.
+     *
+     * @param folderName - the folder name.
+     */
+    export function getFolderId(folderName: string): Number {
+        const res: Response = get('/api/folders');
+        if (res.isError()) {
+            util.reportAndFail('call to get folders failed', getResponseError(res));
+        }
+
+        const folders: any[] = JSON.parse(res.getBody('utf8'));
+        const folder: any = folders.find((p) => {
+            return p['title'] === folderName;
+        });
+        return folder === undefined ? undefined : folder['id'];
+    }
+
+    /**
+     * Get a grafana dashboard.
+     *
+     * @param uid - the dashboard's uid.
+     */
+    export function getDashboard(uid: string): any {
+        const res: Response = get('/api/dashboards/uid/'.concat(uid));
+        if (res.isError()) {
+            if (res.statusCode === 404) {
+                return undefined;
+            }
+            util.reportAndFail('call to get dashboard failed', getResponseError(res));
+        }
+
+        return JSON.parse(res.getBody('utf8'))['dashboard'];
+    }
+
+    /**
+     * Create a grafana folder.
+     *
+     * @param folderName - the folder name.
+     */
+    export function createFolder(folderName: string): number {
+        const res: Response = post('/api/folders', { title: folderName });
+        if (res.isError()) {
+            util.reportAndFail('create folder failed', getResponseError(res));
+        }
+
+        const folder: any = JSON.parse(res.getBody('utf8'));
+        return folder['id'];
+    }
+
+    /**
+     * Import a dashboard into grafana.
+     *
+     * @param dashboardContent - dashboard content, in JSON.
+     * @param folderId - the folder id that holds the dashboard.
+     */
+    export function importDashboard(dashboardContent: any, folderId: number): void {
+        const res: Response = post('/api/dashboards/import', {
+            dashboard: dashboardContent,
+            overwrite: true,
+            folderId: folderId,
+        });
+        if (res.isError()) {
+            util.reportAndFail('import dashboard failed', getResponseError(res));
+        }
+    }
+}
+
+/**
+ * Performs an HTTP GET.
+ *
+ * @param path - the path.
+ */
+function get(path: string): Response {
+    return request('GET', 'http://'.concat(util.getGrafanaHost(), path), {
+        headers: {
+            Authorization: getAuthorization(),
+        },
+    });
+}
+
+/**
+ * Performs an HTTP POST.
+ *
+ * @param path - the path.
+ * @param data - the data to post.
+ */
+function post(path: string, data: any): Response {
+    return request('POST', 'http://'.concat(util.getGrafanaHost(), path), {
+        headers: {
+            Accept: 'application/json',
+            Authorization: getAuthorization(),
+            'Content-Type': 'application/json',
+        },
+        json: data,
+    });
+}
+
+/**
+ * Get basic authorization setting.
+ */
+function getAuthorization(): string {
+    return 'Basic '.concat(Buffer.from(util.getGrafanaAuthorization()).toString('base64'));
+}
+
+/**
+ * Get response error.
+ *
+ * @param res - the failing {@link Response}
+ */
+function getResponseError(res: Response): any {
+    return { statusCode: String(res.statusCode), body: res.body.toString('utf8') };
+}

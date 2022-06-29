@@ -1,0 +1,14 @@
+name: 'Grafana Deployer'
+description: 'GitHub action for deploying Grafana configurations '
+inputs:
+  dryRun:
+    description: 'performs a dry run which makes no changes to grafana'
+    required: true
+    default: 'false'
+  sourcePath:
+    description: 'the source path to deploy'
+    required: true
+    default: './monitoring'
+runs:
+  using: 'node12'
+  main: 'bin/index.js'
