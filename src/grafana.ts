@@ -35,10 +35,10 @@ export namespace grafana {
      *
      * @param args
      */
-    export function run(args: runArgs): void {
-        runChecks(args.sourcePath);
+    export async function run(args: runArgs) {
+        await runChecks(args.sourcePath);
         if (!args.dryRun) {
-            runDeployment(args.sourcePath);
+            await runDeployment(args.sourcePath);
         }
         console.log('Run succeeded');
     }

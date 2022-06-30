@@ -16,7 +16,7 @@ export namespace util {
         if (val == undefined) {
             return false;
         }
-        switch (val.toLowerCase()) {
+        switch (val) {
             case 'true':
             case '1':
                 return true;
@@ -60,15 +60,24 @@ export namespace util {
      *
      * @returns an array of folder names.
      */
-    export function getFolders(sourcePath: string): string[] {
+    export async function getFolders(sourcePath: string) {
         const folders: string[] = [];
-        fs.readdirSync(sourcePath).forEach((directory: string) => {
-            const directoryPath: string = path.resolve(sourcePath, directory);
-            if (fs.lstatSync(directoryPath).isDirectory()) {
-                folders.push(directory);
+        const entries: string[] = await fs.readdir(sourcePath);
+        const p = entries.map(async e => {
+            const isDirectory = await getFolder(sourcePath, e);
+            if (isDirectory) {
+                folders.push(e);
             }
-        });
+        })
+        await Promise.all(p);
+
         return folders;
+    }
+
+    async function getFolder(sourcePath: string, directory: string) {
+        const directoryPath: string = path.resolve(sourcePath, directory);
+        const entryStats = await fs.lstat(directoryPath);
+        return entryStats.isDirectory()
     }
 
     /**
@@ -79,9 +88,9 @@ export namespace util {
      *
      * @returns an array of file names.
      */
-    export function getFolderFiles(sourcePath: string, folder: string): string[] {
+    export async function getFolderFiles(sourcePath: string, folder: string): Promise<string[]> {
         const folderPath: string = path.resolve(sourcePath, folder);
-        return fs.readdirSync(folderPath);
+        return fs.readdir(folderPath);
     }
 
     /**
@@ -114,8 +123,8 @@ export namespace util {
      *
      * @returns the JSON object.
      */
-    export function readJsonFile(path: string): any {
-        const rawData = fs.readFileSync(path);
+    export async function readJsonFile(path: string) {
+        const rawData = await fs.readFile(path);
         return JSON.parse(rawData.toString());
     }
 
@@ -125,8 +134,8 @@ export namespace util {
      * @param path - the file to write.
      * @param data - the data to write.
      */
-    export function writeJsonFile(path: string, data: any): void {
+    export async function writeJsonFile(path: string, data: any) {
         const rawData = JSON.stringify(data, null, 2);
-        fs.writeFileSync(path, rawData);
+        await fs.writeFile(path, rawData);
     }
 }

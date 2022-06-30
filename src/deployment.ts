@@ -11,11 +11,12 @@ import { util } from './util';
  *
  * @param sourcePath - the deployment source path.
  */
-export function runDeployment(sourcePath: string): void {
+export async function runDeployment(sourcePath: string) {
     console.log('Running deployment against', util.getGrafanaHost(), '...');
 
     // loop through the folders and deploy them
-    util.getFolders(sourcePath).forEach((folder) => {
+    const folders: string[] = await util.getFolders(sourcePath);
+    folders.forEach((folder) => {
         deployFolder(sourcePath, folder);
     });
 }
@@ -39,7 +40,8 @@ async function deployFolder(sourcePath: string, folder: string) {
     }
 
     // loop through and deploy the dashboards in this folder
-    util.getFolderFiles(sourcePath, folder).forEach((file) => {
+    const folders: string[] = await util.getFolderFiles(sourcePath, folder);
+    folders.forEach((file) => {
         deployDashboard(sourcePath, folder, folderId.valueOf(), file);
     });
 }
@@ -58,7 +60,7 @@ async function deployDashboard(sourcePath: string, folder: string, folderId: num
 
     // load the dashboard file and get it's uid
     const dashboardPath: string = util.pathResolve(sourcePath, key);
-    const dashboardJson = util.readJsonFile(dashboardPath);
+    const dashboardJson = await util.readJsonFile(dashboardPath);
     const uid: string = dashboardJson['uid'];
 
     // get the dashboard that is in grafana
@@ -71,10 +73,10 @@ async function deployDashboard(sourcePath: string, folder: string, folderId: num
     } else {
         // get the dashboard in grafana
         const workPath: string = util.pathResolve(sourcePath, folder, uid.concat('.json'));
-        util.rmFile(workPath); // just to be safe, delete the local copy of the grafana dashboard
+        await util.rmFile(workPath); // just to be safe, delete the local copy of the grafana dashboard
         delete grafanaDashboard['id']; // remove the id as it may vary between grafana hosts
         delete grafanaDashboard['version']; // remove the version as it may vary between grafana hosts
-        util.writeJsonFile(workPath, grafanaDashboard); // write the grafana dashboard to a local file for diffing
+        await util.writeJsonFile(workPath, grafanaDashboard); // write the grafana dashboard to a local file for diffing
 
         // diff the repo dashboard against the grafana dashboard
         const hasDashboardChanged: boolean = git.diffDashboards(workPath, dashboardPath);
@@ -84,6 +86,6 @@ async function deployDashboard(sourcePath: string, folder: string, folderId: num
         } else {
             console.log('Dashboard is unchanged');
         }
-        util.rmFile(workPath); // we don't need it anymore
+        await util.rmFile(workPath); // we don't need it anymore
     }
 }

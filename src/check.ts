@@ -4,12 +4,18 @@
 
 import { util } from './util';
 
+interface CheckSummary {
+    folderCount: number;
+    foldersWithoutFilesCount: number;
+    failureCount: number;
+}
+
 /**
  * Runs all checks to ensure that we're able to perform a deployment.
  *
  * @param sourcePath - the deployment source path.
  */
-export function runChecks(sourcePath: string): void {
+export async function runChecks(sourcePath: string) {
     console.log('Running checks against', sourcePath, '...');
 
     // the grafana authorization must be set
@@ -23,12 +29,15 @@ export function runChecks(sourcePath: string): void {
     }
 
     // the source path must exist
-    if (!util.pathExists(sourcePath)) {
+    let sourcePathExists: boolean = false;
+    await util.pathExists(sourcePath).then(() => sourcePathExists = true);
+    console.log('sourcePathExists', sourcePathExists)
+    if (!sourcePathExists) {
         util.reportAndFail('source path must exist', sourcePath);
     }
 
     // check all dashboards in the repo
-    checkDashboardsInRepo(sourcePath);
+    await checkDashboardsInRepo(sourcePath);
 
     console.log('All checks passed\n');
 }
@@ -38,47 +47,55 @@ export function runChecks(sourcePath: string): void {
  *
  * @param sourcePath - the deployment source path.
  */
-function checkDashboardsInRepo(sourcePath: string) {
-    let folderCount: number = 0;
-    let foldersWithoutFilesCount: number = 0;
-    let failureCount: number = 0;
+async function checkDashboardsInRepo(sourcePath: string) {
+    const summary: CheckSummary = { folderCount: 0, foldersWithoutFilesCount: 0, failureCount: 0 };
 
-    util.getFolders(sourcePath).forEach((folder) => {
-        console.log('Checking folder', folder);
-        folderCount++;
-        let fileCount: number = 0;
-        util.getFolderFiles(sourcePath, folder).forEach((file) => {
-            console.log('Checking dashboard', file);
-            fileCount++;
-            const dashboardPath: string = util.pathResolve(sourcePath, folder, file);
-            const dashboardJson = util.readJsonFile(dashboardPath);
-            if (dashboardJson['uid'] === undefined) {
-                console.log('uid must exist');
-                failureCount++;
-            }
-            if (dashboardJson['id'] !== undefined) {
-                console.log('id must not exist');
-                failureCount++;
-            }
-            if (dashboardJson['version'] !== undefined) {
-                console.log('version must not exist');
-                failureCount++;
-            }
-        });
-        if (fileCount === 0) {
-            foldersWithoutFilesCount++;
-        }
+    const folders = await util.getFolders(sourcePath);
+    folders.forEach((folder) => {
+        checkFolder(summary, sourcePath, folder);
     });
 
-    if (folderCount === 0) {
+    if (summary.folderCount === 0) {
         util.reportAndFail('source path contains no folders');
     }
 
-    if (foldersWithoutFilesCount > 0) {
+    if (summary.foldersWithoutFilesCount > 0) {
         util.reportAndFail('source path folder contains no files');
     }
 
-    if (failureCount > 0) {
+    if (summary.failureCount > 0) {
         util.reportAndFail('dashboards found in the repo that are not valid for deployment');
+    }
+}
+
+async function checkFolder(summary: CheckSummary, sourcePath: string, folder: string) {
+    console.log('Checking folder', folder);
+    summary.folderCount++;
+    let fileCount: number = 0;
+    const files: string[] = await util.getFolderFiles(sourcePath, folder);
+    files.forEach((file) => {
+        fileCount++;
+        checkFile(summary, sourcePath, folder, file);
+    });
+    if (fileCount === 0) {
+        summary.foldersWithoutFilesCount++;
+    }
+}
+
+async function checkFile(summary: CheckSummary, sourcePath: string, folder: string, file: string) {
+    console.log('Checking dashboard', file);
+    const dashboardPath: string = util.pathResolve(sourcePath, folder, file);
+    const dashboardJson = await util.readJsonFile(dashboardPath);
+    if (dashboardJson['uid'] === undefined) {
+        console.log('uid must exist');
+        summary.failureCount++;
+    }
+    if (dashboardJson['id'] !== undefined) {
+        console.log('id must not exist');
+        summary.failureCount++;
+    }
+    if (dashboardJson['version'] !== undefined) {
+        console.log('version must not exist');
+        summary.failureCount++;
     }
 }

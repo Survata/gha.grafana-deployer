@@ -14,7 +14,7 @@ if (util.isTrue(process.env.GITHUB_ACTIONS)) {
         dryRun: util.isTrue(core.getInput('dryRun')),
         sourcePath: core.getInput('sourcePath'),
     };
-    grafana.run(args);
+    grafana.run(args).then();
 } else {
     grafana.setupCommand(program);
     program.parse(process.argv);
