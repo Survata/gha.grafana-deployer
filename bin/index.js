@@ -331,9 +331,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.util = void 0;
-const fs_1 = __importDefault(__nccwpck_require__(7147));
+const fs = (__nccwpck_require__(7147).promises);
 const path_1 = __importDefault(__nccwpck_require__(1017));
-const f = (__nccwpck_require__(7147).promises);
 var util;
 (function (util) {
     function isTrue(val) {
@@ -355,7 +354,7 @@ var util;
     }
     util.reportAndFail = reportAndFail;
     function pathExists(path) {
-        return fs_1.default.existsSync(path);
+        return fs.existsSync(path);
     }
     util.pathExists = pathExists;
     function pathResolve(...pathSegments) {
@@ -364,9 +363,9 @@ var util;
     util.pathResolve = pathResolve;
     function getFolders(sourcePath) {
         const folders = [];
-        fs_1.default.readdirSync(sourcePath).forEach((directory) => {
+        fs.readdirSync(sourcePath).forEach((directory) => {
             const directoryPath = path_1.default.resolve(sourcePath, directory);
-            if (fs_1.default.lstatSync(directoryPath).isDirectory()) {
+            if (fs.lstatSync(directoryPath).isDirectory()) {
                 folders.push(directory);
             }
         });
@@ -375,7 +374,7 @@ var util;
     util.getFolders = getFolders;
     function getFolderFiles(sourcePath, folder) {
         const folderPath = path_1.default.resolve(sourcePath, folder);
-        return fs_1.default.readdirSync(folderPath);
+        return fs.readdirSync(folderPath);
     }
     util.getFolderFiles = getFolderFiles;
     function getGrafanaAuthorization() {
@@ -387,17 +386,17 @@ var util;
     }
     util.getGrafanaHost = getGrafanaHost;
     async function rmFile(path) {
-        await f.rm(path);
+        await fs.rm(path);
     }
     util.rmFile = rmFile;
     function readJsonFile(path) {
-        const rawData = fs_1.default.readFileSync(path);
+        const rawData = fs.readFileSync(path);
         return JSON.parse(rawData.toString());
     }
     util.readJsonFile = readJsonFile;
     function writeJsonFile(path, data) {
         const rawData = JSON.stringify(data, null, 2);
-        fs_1.default.writeFileSync(path, rawData);
+        fs.writeFileSync(path, rawData);
     }
     util.writeJsonFile = writeJsonFile;
 })(util = exports.util || (exports.util = {}));

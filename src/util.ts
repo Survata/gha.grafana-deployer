@@ -2,10 +2,9 @@
 
 'use strict';
 
-import fs from 'fs';
-import path from 'path';
 // ncc wasn't including fs/promises when using import, using require works
-const f = require('fs').promises;
+const fs = require('fs').promises;
+import path from 'path';
 
 
 export namespace util {
@@ -64,7 +63,7 @@ export namespace util {
      */
     export function getFolders(sourcePath: string): string[] {
         const folders: string[] = [];
-        fs.readdirSync(sourcePath).forEach((directory) => {
+        fs.readdirSync(sourcePath).forEach((directory: string) => {
             const directoryPath: string = path.resolve(sourcePath, directory);
             if (fs.lstatSync(directoryPath).isDirectory()) {
                 folders.push(directory);
@@ -106,7 +105,7 @@ export namespace util {
      * @param path - the file to remove.
      */
     export async function rmFile(path: string) {
-        await f.rm(path)
+        await fs.rm(path)
     }
 
     /**
