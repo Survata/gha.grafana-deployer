@@ -5,20 +5,25 @@
 import { git } from './git';
 import { grafana } from './grafana';
 import { util } from './util';
+import { runArgs } from './runArgs';
 
 /**
  * Runs a deployment to a given grafana host.
  *
  * @param sourcePath - the deployment source path.
  */
-export async function runDeployment(sourcePath: string) {
+export async function runDeployment(args: runArgs) {
+    if (args.dryRun) {
+        return;
+    }
     console.log('Running deployment against', util.getGrafanaHost(), '...');
 
     // loop through the folders and deploy them
-    const folders: string[] = await util.getFolders(sourcePath);
-    folders.forEach((folder) => {
-        deployFolder(sourcePath, folder);
+    const folders: string[] = await util.getFolders(args.sourcePath);
+    const promises = folders.map(async (folder: string) => {
+        await deployFolder(args.sourcePath, folder);
     });
+    await Promise.all(promises);
 }
 
 /**
@@ -34,16 +39,17 @@ async function deployFolder(sourcePath: string, folder: string) {
     // deploy the folder, create it if it doesn't exist
     if (folderId === undefined) {
         console.log('Creating folder in grafana');
-        folderId = grafana.createFolder(folder);
+        folderId = await grafana.createFolder(folder);
     } else {
         console.log('Folder exists in grafana');
     }
 
     // loop through and deploy the dashboards in this folder
     const folders: string[] = await util.getFolderFiles(sourcePath, folder);
-    folders.forEach((file) => {
-        deployDashboard(sourcePath, folder, folderId.valueOf(), file);
+    const promises = folders.map(async (file: string) => {
+        await deployDashboard(sourcePath, folder, folderId.valueOf(), file);
     });
+    await Promise.all(promises);
 }
 
 /**

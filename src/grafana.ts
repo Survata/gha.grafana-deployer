@@ -21,12 +21,12 @@ export namespace grafana {
             .description('deploys to grafana')
             .option('-d, --dry-run', 'performs a dry run of the deployment')
             .option('-s, --sourcePath <path>', 'specifies the source path to deploy', './monitoring')
-            .action((options) => {
+            .action(async (options) => {
                 const args: runArgs = {
-                    dryRun: util.isTrue(options.dryRun),
+                    dryRun: util.isFlag(options.dryRun),
                     sourcePath: options.sourcePath,
                 };
-                run(args);
+                await run(args);
             });
     }
 
@@ -36,10 +36,11 @@ export namespace grafana {
      * @param args
      */
     export async function run(args: runArgs) {
-        await runChecks(args.sourcePath);
-        if (!args.dryRun) {
-            await runDeployment(args.sourcePath);
+        if (args.dryRun) {
+            console.log('Performing dry run');
         }
+        await runChecks(args.sourcePath);
+        await runDeployment(args);
         console.log('Run succeeded');
     }
 
@@ -83,8 +84,8 @@ export namespace grafana {
      *
      * @param folderName - the folder name.
      */
-    export function createFolder(folderName: string): number {
-        const res: AxiosResponse = post('/api/folders', { title: folderName });
+    export async function createFolder(folderName: string) {
+        const res: AxiosResponse = await post('/api/folders', { title: folderName });
         if (res.status !== 200) {
             util.reportAndFail('create folder failed', getResponseError(res));
         }
@@ -99,8 +100,8 @@ export namespace grafana {
      * @param dashboardContent - dashboard content, in JSON.
      * @param folderId - the folder id that holds the dashboard.
      */
-    export function importDashboard(dashboardContent: any, folderId: number): void {
-        const res: AxiosResponse = post('/api/dashboards/import', {
+    export async function importDashboard(dashboardContent: any, folderId: number) {
+        const res: AxiosResponse = await post('/api/dashboards/import', {
             dashboard: dashboardContent,
             overwrite: true,
             folderId: folderId,
@@ -117,7 +118,7 @@ export namespace grafana {
  * @param path - the path.
  */
 async function get(path: string): Promise<AxiosResponse> {
-    return await axios.get('http://'.concat(util.getGrafanaHost(), path), {
+    return axios.get('http://'.concat(util.getGrafanaHost(), path), {
         headers: {
             Authorization: getAuthorization(),
         },
@@ -130,19 +131,14 @@ async function get(path: string): Promise<AxiosResponse> {
  * @param path - the path.
  * @param data - the data to post.
  */
-// @ts-ignore
-function post(path: string, data: any): AxiosResponse {
-    axios
-        .post('http://'.concat(util.getGrafanaHost(), path), data, {
-            headers: {
-                Accept: 'application/json',
-                Authorization: getAuthorization(),
-                'Content-Type': 'application/json',
-            },
-        })
-        .then((r) => {
-            return r;
-        });
+async function post(path: string, data: any) {
+    return axios.post('http://'.concat(util.getGrafanaHost(), path), data, {
+        headers: {
+            Accept: 'application/json',
+            Authorization: getAuthorization(),
+            'Content-Type': 'application/json',
+        },
+    });
 }
 
 /**

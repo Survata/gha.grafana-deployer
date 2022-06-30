@@ -13,7 +13,7 @@ export namespace util {
      * @param val
      */
     export function isTrue(val: string | undefined): boolean {
-        if (val == undefined) {
+        if (val === undefined) {
             return false;
         }
         switch (val) {
@@ -23,6 +23,15 @@ export namespace util {
             default:
                 return false;
         }
+    }
+
+    /**
+     * Tests if the provided string is a flag (i.e. defined).
+     *
+     * @param val
+     */
+    export function isFlag(val: string | undefined): boolean {
+        return val !== undefined;
     }
 
     /**
@@ -63,21 +72,16 @@ export namespace util {
     export async function getFolders(sourcePath: string) {
         const folders: string[] = [];
         const entries: string[] = await fs.readdir(sourcePath);
-        const p = entries.map(async e => {
-            const isDirectory = await getFolder(sourcePath, e);
-            if (isDirectory) {
-                folders.push(e);
+        const promises = entries.map(async (directory) => {
+            const directoryPath: string = path.resolve(sourcePath, directory);
+            const entryStats = await fs.lstat(directoryPath);
+            if (entryStats.isDirectory()) {
+                folders.push(directory);
             }
-        })
-        await Promise.all(p);
+        });
+        await Promise.all(promises);
 
         return folders;
-    }
-
-    async function getFolder(sourcePath: string, directory: string) {
-        const directoryPath: string = path.resolve(sourcePath, directory);
-        const entryStats = await fs.lstat(directoryPath);
-        return entryStats.isDirectory()
     }
 
     /**

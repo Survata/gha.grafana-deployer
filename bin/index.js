@@ -18,8 +18,7 @@ async function runChecks(sourcePath) {
         util_1.util.reportAndFail('environment variable must be set', 'GRAFANA_HOST');
     }
     let sourcePathExists = false;
-    await util_1.util.pathExists(sourcePath).then(() => sourcePathExists = true);
-    console.log('sourcePathExists', sourcePathExists);
+    await util_1.util.pathExists(sourcePath).then(() => (sourcePathExists = true));
     if (!sourcePathExists) {
         util_1.util.reportAndFail('source path must exist', sourcePath);
     }
@@ -30,9 +29,10 @@ exports.runChecks = runChecks;
 async function checkDashboardsInRepo(sourcePath) {
     const summary = { folderCount: 0, foldersWithoutFilesCount: 0, failureCount: 0 };
     const folders = await util_1.util.getFolders(sourcePath);
-    folders.forEach((folder) => {
-        checkFolder(summary, sourcePath, folder);
+    const promises = folders.map(async (folder) => {
+        await checkFolder(summary, sourcePath, folder);
     });
+    await Promise.all(promises);
     if (summary.folderCount === 0) {
         util_1.util.reportAndFail('source path contains no folders');
     }
@@ -48,29 +48,27 @@ async function checkFolder(summary, sourcePath, folder) {
     summary.folderCount++;
     let fileCount = 0;
     const files = await util_1.util.getFolderFiles(sourcePath, folder);
-    files.forEach((file) => {
+    const promises = files.map(async (file) => {
         fileCount++;
-        checkFile(summary, sourcePath, folder, file);
+        console.log('Checking dashboard', file);
+        const dashboardPath = util_1.util.pathResolve(sourcePath, folder, file);
+        const dashboardJson = await util_1.util.readJsonFile(dashboardPath);
+        if (dashboardJson['uid'] === undefined) {
+            console.log('uid must exist');
+            summary.failureCount++;
+        }
+        if (dashboardJson['id'] !== undefined) {
+            console.log('id must not exist');
+            summary.failureCount++;
+        }
+        if (dashboardJson['version'] !== undefined) {
+            console.log('version must not exist');
+            summary.failureCount++;
+        }
     });
+    await Promise.all(promises);
     if (fileCount === 0) {
         summary.foldersWithoutFilesCount++;
-    }
-}
-async function checkFile(summary, sourcePath, folder, file) {
-    console.log('Checking dashboard', file);
-    const dashboardPath = util_1.util.pathResolve(sourcePath, folder, file);
-    const dashboardJson = await util_1.util.readJsonFile(dashboardPath);
-    if (dashboardJson['uid'] === undefined) {
-        console.log('uid must exist');
-        summary.failureCount++;
-    }
-    if (dashboardJson['id'] !== undefined) {
-        console.log('id must not exist');
-        summary.failureCount++;
-    }
-    if (dashboardJson['version'] !== undefined) {
-        console.log('version must not exist');
-        summary.failureCount++;
     }
 }
 
@@ -87,12 +85,16 @@ exports.runDeployment = void 0;
 const git_1 = __nccwpck_require__(4002);
 const grafana_1 = __nccwpck_require__(8907);
 const util_1 = __nccwpck_require__(744);
-async function runDeployment(sourcePath) {
+async function runDeployment(args) {
+    if (args.dryRun) {
+        return;
+    }
     console.log('Running deployment against', util_1.util.getGrafanaHost(), '...');
-    const folders = await util_1.util.getFolders(sourcePath);
-    folders.forEach((folder) => {
-        deployFolder(sourcePath, folder);
+    const folders = await util_1.util.getFolders(args.sourcePath);
+    const promises = folders.map(async (folder) => {
+        await deployFolder(args.sourcePath, folder);
     });
+    await Promise.all(promises);
 }
 exports.runDeployment = runDeployment;
 async function deployFolder(sourcePath, folder) {
@@ -100,15 +102,16 @@ async function deployFolder(sourcePath, folder) {
     let folderId = await grafana_1.grafana.getFolderId(folder);
     if (folderId === undefined) {
         console.log('Creating folder in grafana');
-        folderId = grafana_1.grafana.createFolder(folder);
+        folderId = await grafana_1.grafana.createFolder(folder);
     }
     else {
         console.log('Folder exists in grafana');
     }
     const folders = await util_1.util.getFolderFiles(sourcePath, folder);
-    folders.forEach((file) => {
-        deployDashboard(sourcePath, folder, folderId.valueOf(), file);
+    const promises = folders.map(async (file) => {
+        await deployDashboard(sourcePath, folder, folderId.valueOf(), file);
     });
+    await Promise.all(promises);
 }
 async function deployDashboard(sourcePath, folder, folderId, file) {
     console.log('Deploying dashboard', file);
@@ -195,20 +198,21 @@ var grafana;
             .description('deploys to grafana')
             .option('-d, --dry-run', 'performs a dry run of the deployment')
             .option('-s, --sourcePath <path>', 'specifies the source path to deploy', './monitoring')
-            .action((options) => {
+            .action(async (options) => {
             const args = {
-                dryRun: util_1.util.isTrue(options.dryRun),
+                dryRun: util_1.util.isFlag(options.dryRun),
                 sourcePath: options.sourcePath,
             };
-            run(args);
+            await run(args);
         });
     }
     grafana.setupCommand = setupCommand;
     async function run(args) {
-        await (0, check_1.runChecks)(args.sourcePath);
-        if (!args.dryRun) {
-            await (0, deployment_1.runDeployment)(args.sourcePath);
+        if (args.dryRun) {
+            console.log('Performing dry run');
         }
+        await (0, check_1.runChecks)(args.sourcePath);
+        await (0, deployment_1.runDeployment)(args);
         console.log('Run succeeded');
     }
     grafana.run = run;
@@ -235,8 +239,8 @@ var grafana;
         return r.data['dashboard'];
     }
     grafana.getDashboard = getDashboard;
-    function createFolder(folderName) {
-        const res = post('/api/folders', { title: folderName });
+    async function createFolder(folderName) {
+        const res = await post('/api/folders', { title: folderName });
         if (res.status !== 200) {
             util_1.util.reportAndFail('create folder failed', getResponseError(res));
         }
@@ -244,8 +248,8 @@ var grafana;
         return folder['id'];
     }
     grafana.createFolder = createFolder;
-    function importDashboard(dashboardContent, folderId) {
-        const res = post('/api/dashboards/import', {
+    async function importDashboard(dashboardContent, folderId) {
+        const res = await post('/api/dashboards/import', {
             dashboard: dashboardContent,
             overwrite: true,
             folderId: folderId,
@@ -257,23 +261,19 @@ var grafana;
     grafana.importDashboard = importDashboard;
 })(grafana = exports.grafana || (exports.grafana = {}));
 async function get(path) {
-    return await axios_1.default.get('http://'.concat(util_1.util.getGrafanaHost(), path), {
+    return axios_1.default.get('http://'.concat(util_1.util.getGrafanaHost(), path), {
         headers: {
             Authorization: getAuthorization(),
         },
     });
 }
-function post(path, data) {
-    axios_1.default
-        .post('http://'.concat(util_1.util.getGrafanaHost(), path), data, {
+async function post(path, data) {
+    return axios_1.default.post('http://'.concat(util_1.util.getGrafanaHost(), path), data, {
         headers: {
             Accept: 'application/json',
             Authorization: getAuthorization(),
             'Content-Type': 'application/json',
         },
-    })
-        .then((r) => {
-        return r;
     });
 }
 function getAuthorization() {
@@ -321,7 +321,7 @@ const grafana_1 = __nccwpck_require__(8907);
 const commander_1 = __nccwpck_require__(1662);
 if (util_1.util.isTrue(process.env.GITHUB_ACTIONS)) {
     const args = {
-        dryRun: util_1.util.isTrue(core.getInput('dryRun')),
+        dryRun: util_1.util.isFlag(core.getInput('dryRun')),
         sourcePath: core.getInput('sourcePath'),
     };
     grafana_1.grafana.run(args).then();
@@ -349,7 +349,7 @@ const path_1 = __importDefault(__nccwpck_require__(1017));
 var util;
 (function (util) {
     function isTrue(val) {
-        if (val == undefined) {
+        if (val === undefined) {
             return false;
         }
         switch (val) {
@@ -361,6 +361,10 @@ var util;
         }
     }
     util.isTrue = isTrue;
+    function isFlag(val) {
+        return val !== undefined;
+    }
+    util.isFlag = isFlag;
     function reportAndFail(...messages) {
         console.log('Run failed due to', messages);
         process.exit(1);
@@ -377,21 +381,17 @@ var util;
     async function getFolders(sourcePath) {
         const folders = [];
         const entries = await fs.readdir(sourcePath);
-        const p = entries.map(async (e) => {
-            const isDirectory = await getFolder(sourcePath, e);
-            if (isDirectory) {
-                folders.push(e);
+        const promises = entries.map(async (directory) => {
+            const directoryPath = path_1.default.resolve(sourcePath, directory);
+            const entryStats = await fs.lstat(directoryPath);
+            if (entryStats.isDirectory()) {
+                folders.push(directory);
             }
         });
-        await Promise.all(p);
+        await Promise.all(promises);
         return folders;
     }
     util.getFolders = getFolders;
-    async function getFolder(sourcePath, directory) {
-        const directoryPath = path_1.default.resolve(sourcePath, directory);
-        const entryStats = await fs.lstat(directoryPath);
-        return entryStats.isDirectory();
-    }
     async function getFolderFiles(sourcePath, folder) {
         const folderPath = path_1.default.resolve(sourcePath, folder);
         return fs.readdir(folderPath);

@@ -11,7 +11,7 @@ import { runArgs } from './runArgs';
 
 if (util.isTrue(process.env.GITHUB_ACTIONS)) {
     const args: runArgs = {
-        dryRun: util.isTrue(core.getInput('dryRun')),
+        dryRun: util.isFlag(core.getInput('dryRun')),
         sourcePath: core.getInput('sourcePath'),
     };
     grafana.run(args).then();
