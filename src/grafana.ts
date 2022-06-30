@@ -7,7 +7,7 @@ import { Command } from 'commander';
 import { runDeployment } from './deployment';
 import { runChecks } from './check';
 import { runArgs } from './runArgs';
-import axios, {AxiosResponse} from "axios";
+import axios, { AxiosResponse } from 'axios';
 
 export namespace grafana {
     /**
@@ -118,10 +118,10 @@ export namespace grafana {
  */
 async function get(path: string): Promise<AxiosResponse> {
     return await axios.get('http://'.concat(util.getGrafanaHost(), path), {
-            headers: {
-                Authorization: getAuthorization(),
-            },
-        });
+        headers: {
+            Authorization: getAuthorization(),
+        },
+    });
 }
 
 /**
@@ -132,15 +132,17 @@ async function get(path: string): Promise<AxiosResponse> {
  */
 // @ts-ignore
 function post(path: string, data: any): AxiosResponse {
-    axios.post('http://'.concat(util.getGrafanaHost(), path), data, {
-        headers: {
-            Accept: 'application/json',
-            Authorization: getAuthorization(),
-            'Content-Type': 'application/json',
-        }
-    }).then(r => {
-        return r
-    })
+    axios
+        .post('http://'.concat(util.getGrafanaHost(), path), data, {
+            headers: {
+                Accept: 'application/json',
+                Authorization: getAuthorization(),
+                'Content-Type': 'application/json',
+            },
+        })
+        .then((r) => {
+            return r;
+        });
 }
 
 /**

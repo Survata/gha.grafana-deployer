@@ -6,7 +6,6 @@
 const fs = require('fs').promises;
 import path from 'path';
 
-
 export namespace util {
     /**
      * Tests if the provided string is "true".
@@ -41,8 +40,8 @@ export namespace util {
      *
      * @param path - the path to check.
      */
-    export function pathExists(path: string): boolean {
-        return fs.existsSync(path);
+    export async function pathExists(path: string) {
+        return await fs.access(path);
     }
 
     /**
@@ -105,7 +104,7 @@ export namespace util {
      * @param path - the file to remove.
      */
     export async function rmFile(path: string) {
-        await fs.rm(path)
+        await fs.rm(path, { force: true });
     }
 
     /**

@@ -253,13 +253,15 @@ async function get(path) {
     });
 }
 function post(path, data) {
-    axios_1.default.post('http://'.concat(util_1.util.getGrafanaHost(), path), data, {
+    axios_1.default
+        .post('http://'.concat(util_1.util.getGrafanaHost(), path), data, {
         headers: {
             Accept: 'application/json',
             Authorization: getAuthorization(),
             'Content-Type': 'application/json',
-        }
-    }).then(r => {
+        },
+    })
+        .then((r) => {
         return r;
     });
 }
@@ -353,8 +355,8 @@ var util;
         process.exit(1);
     }
     util.reportAndFail = reportAndFail;
-    function pathExists(path) {
-        return fs.existsSync(path);
+    async function pathExists(path) {
+        return await fs.access(path);
     }
     util.pathExists = pathExists;
     function pathResolve(...pathSegments) {
@@ -386,7 +388,7 @@ var util;
     }
     util.getGrafanaHost = getGrafanaHost;
     async function rmFile(path) {
-        await fs.rm(path);
+        await fs.rm(path, { force: true });
     }
     util.rmFile = rmFile;
     function readJsonFile(path) {
