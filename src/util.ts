@@ -4,6 +4,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import * as f from "fs/promises";
 
 export namespace util {
     /**
@@ -102,10 +103,8 @@ export namespace util {
      *
      * @param path - the file to remove.
      */
-    export function rmFile(path: string): void {
-        if (fs.existsSync(path)) {
-            fs.rmSync(path);
-        }
+    export async function rmFile(path: string) {
+        await f.rm(path)
     }
 
     /**
