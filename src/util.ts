@@ -4,7 +4,9 @@
 
 import fs from 'fs';
 import path from 'path';
-import * as f from "fs/promises";
+// ncc wasn't including fs/promises when using import, using require works
+const f = require('fs').promises;
+
 
 export namespace util {
     /**
