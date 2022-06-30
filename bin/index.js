@@ -200,7 +200,7 @@ var grafana;
             .option('-s, --sourcePath <path>', 'specifies the source path to deploy', './monitoring')
             .action(async (options) => {
             const args = {
-                dryRun: util_1.util.isFlag(options.dryRun),
+                dryRun: util_1.util.isTrue(options.dryRun),
                 sourcePath: options.sourcePath,
             };
             await run(args);
@@ -321,7 +321,7 @@ const grafana_1 = __nccwpck_require__(8907);
 const commander_1 = __nccwpck_require__(1662);
 if (util_1.util.isTrue(process.env.GITHUB_ACTIONS)) {
     const args = {
-        dryRun: util_1.util.isFlag(core.getInput('dryRun')),
+        dryRun: util_1.util.isTrue(core.getInput('dryRun')),
         sourcePath: core.getInput('sourcePath'),
     };
     grafana_1.grafana.run(args).then();
@@ -355,16 +355,13 @@ var util;
         switch (val) {
             case 'true':
             case '1':
+            case true:
                 return true;
             default:
                 return false;
         }
     }
     util.isTrue = isTrue;
-    function isFlag(val) {
-        return val !== undefined;
-    }
-    util.isFlag = isFlag;
     function reportAndFail(...messages) {
         console.log('Run failed due to', messages);
         process.exit(1);

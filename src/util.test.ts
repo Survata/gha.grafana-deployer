@@ -13,5 +13,6 @@ describe('test isTrue()', () => {
     test('when true', () => {
         expect(util.isTrue('true')).toBe(true);
         expect(util.isTrue('1')).toBe(true);
+        expect(util.isTrue(true)).toBe(true);
     });
 });

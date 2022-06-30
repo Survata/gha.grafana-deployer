@@ -12,26 +12,18 @@ export namespace util {
      *
      * @param val
      */
-    export function isTrue(val: string | undefined): boolean {
+    export function isTrue(val: string | boolean | undefined): boolean {
         if (val === undefined) {
             return false;
         }
         switch (val) {
             case 'true':
             case '1':
+            case true:
                 return true;
             default:
                 return false;
         }
-    }
-
-    /**
-     * Tests if the provided string is a flag (i.e. defined).
-     *
-     * @param val
-     */
-    export function isFlag(val: string | undefined): boolean {
-        return val !== undefined;
     }
 
     /**

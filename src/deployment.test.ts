@@ -6,15 +6,18 @@ import { runDeployment } from './deployment';
 import { util } from './util';
 import { grafana } from './grafana';
 import { git } from './git';
+import { runArgs } from './runArgs';
 
 // mock the default function in sync-request so that it doesn't start up
-jest.mock('sync-request', () => {
-    return {
-        default: jest.fn(),
-    };
-});
+// jest.mock('sync-request', () => {
+//     return {
+//         default: jest.fn(),
+//     };
+// });
 
 describe('test runDeployment()', () => {
+    const testArgs: runArgs = { dryRun: false, sourcePath: 'foo/bar' };
+
     beforeAll(() => {
         // suppress all console.log
         global.console.log = jest.fn();
@@ -26,7 +29,7 @@ describe('test runDeployment()', () => {
         grafana.createFolder = jest.fn();
         util.getFolderFiles = jest.fn().mockReturnValueOnce([]);
 
-        runDeployment('foo/bar');
+        runDeployment(testArgs);
 
         expect(grafana.createFolder).toBeCalled();
     });
@@ -40,7 +43,7 @@ describe('test runDeployment()', () => {
         grafana.getDashboard = jest.fn().mockReturnValueOnce(undefined);
         grafana.importDashboard = jest.fn();
 
-        runDeployment('foo/bar');
+        runDeployment(testArgs);
 
         expect(grafana.createFolder).not.toBeCalled();
         expect(grafana.importDashboard).toBeCalled();
@@ -59,7 +62,7 @@ describe('test runDeployment()', () => {
         git.diffDashboards = jest.fn().mockReturnValueOnce(true);
         grafana.importDashboard = jest.fn();
 
-        runDeployment('foo/bar');
+        runDeployment(testArgs);
 
         expect(grafana.createFolder).not.toBeCalled();
         expect(grafana.importDashboard).toBeCalled();
@@ -78,7 +81,7 @@ describe('test runDeployment()', () => {
         git.diffDashboards = jest.fn().mockReturnValueOnce(false);
         grafana.importDashboard = jest.fn();
 
-        runDeployment('foo/bar');
+        runDeployment(testArgs);
 
         expect(grafana.createFolder).not.toBeCalled();
         expect(grafana.importDashboard).not.toBeCalled();

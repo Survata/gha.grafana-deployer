@@ -23,7 +23,7 @@ export namespace grafana {
             .option('-s, --sourcePath <path>', 'specifies the source path to deploy', './monitoring')
             .action(async (options) => {
                 const args: runArgs = {
-                    dryRun: util.isFlag(options.dryRun),
+                    dryRun: util.isTrue(options.dryRun),
                     sourcePath: options.sourcePath,
                 };
                 await run(args);
