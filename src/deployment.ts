@@ -10,7 +10,7 @@ import { runArgs } from './runArgs';
 /**
  * Runs a deployment to a given grafana host.
  *
- * @param sourcePath - the deployment source path.
+ * @param args - the run arguments.
  */
 export async function runDeployment(args: runArgs) {
     if (args.dryRun) {
@@ -75,7 +75,7 @@ async function deployDashboard(sourcePath: string, folder: string, folderId: num
     // deploy the dashboard, create it if it doesn't exist or update it if it's changed
     if (grafanaDashboard === undefined) {
         console.log('Creating dashboard in grafana');
-        grafana.importDashboard(dashboardJson, folderId);
+        await grafana.importDashboard(dashboardJson, folderId);
     } else {
         // get the dashboard in grafana
         const workPath: string = util.pathResolve(sourcePath, folder, uid.concat('.json'));
@@ -88,7 +88,7 @@ async function deployDashboard(sourcePath: string, folder: string, folderId: num
         const hasDashboardChanged: boolean = git.diffDashboards(workPath, dashboardPath);
         if (hasDashboardChanged) {
             console.log('Updating dashboard in grafana');
-            grafana.importDashboard(dashboardJson, folderId);
+            await grafana.importDashboard(dashboardJson, folderId);
         } else {
             console.log('Dashboard is unchanged');
         }

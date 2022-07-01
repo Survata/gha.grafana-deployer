@@ -8,13 +8,6 @@ import { grafana } from './grafana';
 import { git } from './git';
 import { runArgs } from './runArgs';
 
-// mock the default function in sync-request so that it doesn't start up
-// jest.mock('sync-request', () => {
-//     return {
-//         default: jest.fn(),
-//     };
-// });
-
 describe('test runDeployment()', () => {
     const testArgs: runArgs = { dryRun: false, sourcePath: 'foo/bar' };
 
@@ -23,18 +16,18 @@ describe('test runDeployment()', () => {
         global.console.log = jest.fn();
     });
 
-    test('creates a folder', () => {
+    test('creates a folder', async () => {
         util.getFolders = jest.fn().mockReturnValueOnce(['foo']);
         grafana.getFolderId = jest.fn();
         grafana.createFolder = jest.fn();
         util.getFolderFiles = jest.fn().mockReturnValueOnce([]);
 
-        runDeployment(testArgs);
+        await runDeployment(testArgs);
 
         expect(grafana.createFolder).toBeCalled();
     });
 
-    test('creates a dashboard', () => {
+    test('creates a dashboard', async () => {
         util.getFolders = jest.fn().mockReturnValueOnce(['foo']);
         grafana.getFolderId = jest.fn().mockReturnValueOnce(1);
         grafana.createFolder = jest.fn();
@@ -43,13 +36,13 @@ describe('test runDeployment()', () => {
         grafana.getDashboard = jest.fn().mockReturnValueOnce(undefined);
         grafana.importDashboard = jest.fn();
 
-        runDeployment(testArgs);
+        await runDeployment(testArgs);
 
         expect(grafana.createFolder).not.toBeCalled();
         expect(grafana.importDashboard).toBeCalled();
     });
 
-    test('updates a dashboard', () => {
+    test('updates a dashboard', async () => {
         util.getFolders = jest.fn().mockReturnValueOnce(['foo']);
         grafana.getFolderId = jest.fn().mockReturnValueOnce(1);
         grafana.createFolder = jest.fn();
@@ -62,13 +55,13 @@ describe('test runDeployment()', () => {
         git.diffDashboards = jest.fn().mockReturnValueOnce(true);
         grafana.importDashboard = jest.fn();
 
-        runDeployment(testArgs);
+        await runDeployment(testArgs);
 
         expect(grafana.createFolder).not.toBeCalled();
         expect(grafana.importDashboard).toBeCalled();
     });
 
-    test('dashboard is unchanged', () => {
+    test('dashboard is unchanged', async () => {
         util.getFolders = jest.fn().mockReturnValueOnce(['foo']);
         grafana.getFolderId = jest.fn().mockReturnValueOnce(1);
         grafana.createFolder = jest.fn();
@@ -81,7 +74,7 @@ describe('test runDeployment()', () => {
         git.diffDashboards = jest.fn().mockReturnValueOnce(false);
         grafana.importDashboard = jest.fn();
 
-        runDeployment(testArgs);
+        await runDeployment(testArgs);
 
         expect(grafana.createFolder).not.toBeCalled();
         expect(grafana.importDashboard).not.toBeCalled();

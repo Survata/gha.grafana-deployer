@@ -11,54 +11,63 @@ describe('test runChecks()', () => {
         global.console.log = jest.fn();
     });
 
-    test('fails when GRAFANA_AUTHORIZATION is not found', () => {
+    test('fails when GRAFANA_AUTHORIZATION is not found', async () => {
         util.getGrafanaAuthorization = jest.fn().mockReturnValueOnce('');
         util.reportAndFail = jest.fn().mockImplementationOnce((...messages) => {
             throw new Error(messages.join(' '));
         });
 
-        expect(() => {
-            runChecks('foo/bar');
-        }).toThrow('environment variable must be set GRAFANA_AUTHORIZATION');
+        try {
+            await runChecks('foo/bar');
+        } catch (e) {
+            expect(e).toEqual(new Error('environment variable must be set GRAFANA_AUTHORIZATION'));
+        }
     });
 
-    test('fails when GRAFANA_HOST is not found', () => {
+    test('fails when GRAFANA_HOST is not found', async () => {
         util.getGrafanaAuthorization = jest.fn().mockReturnValueOnce('GRAFANA_AUTHORIZATION');
         util.getGrafanaHost = jest.fn().mockReturnValueOnce('');
         util.reportAndFail = jest.fn().mockImplementationOnce((...messages) => {
             throw new Error(messages.join(' '));
         });
 
-        expect(() => {
-            runChecks('foo/bar');
-        }).toThrow('environment variable must be set GRAFANA_HOST');
+        try {
+            await runChecks('foo/bar');
+        } catch (e) {
+            expect(e).toEqual(new Error('environment variable must be set GRAFANA_HOST'));
+        }
     });
 
-    test('fails when source path is not found', () => {
+    test('fails when source path is not found', async () => {
+        // util.getGrafanaAuthorization = jest.fn().mockReturnValueOnce('GRAFANA_AUTHORIZATION');
         util.getGrafanaHost = jest.fn().mockReturnValueOnce('GRAFANA_HOST');
         util.pathExists = jest.fn().mockReturnValueOnce(false);
         util.reportAndFail = jest.fn().mockImplementationOnce((...messages) => {
             throw new Error(messages.join(' '));
         });
 
-        expect(() => {
-            runChecks('foo/bar');
-        }).toThrow('source path must exist foo/bar');
+        try {
+            await runChecks('foo/bar');
+        } catch (e) {
+            expect(e).toEqual(new Error('source path must exist foo/bar'));
+        }
     });
 
-    test('fails when source path has no folders', () => {
+    test('fails when source path has no folders', async () => {
         util.pathExists = jest.fn().mockReturnValueOnce(true);
         util.getFolders = jest.fn().mockReturnValueOnce([]);
         util.reportAndFail = jest.fn().mockImplementationOnce((...messages) => {
             throw new Error(messages.join(' '));
         });
 
-        expect(() => {
-            runChecks('foo/bar');
-        }).toThrow('source path contains no folders');
+        try {
+            await runChecks('foo/bar');
+        } catch (e) {
+            expect(e).toEqual(new Error('source path contains no folders'));
+        }
     });
 
-    test('fails when source path folder has no files', () => {
+    test('fails when source path folder has no files', async () => {
         util.pathExists = jest.fn().mockReturnValueOnce(true);
         util.getFolders = jest.fn().mockReturnValueOnce(['etc']);
         util.getFolderFiles = jest.fn().mockReturnValueOnce([]);
@@ -66,12 +75,14 @@ describe('test runChecks()', () => {
             throw new Error(messages.join(' '));
         });
 
-        expect(() => {
-            runChecks('foo/bar');
-        }).toThrow('source path folder contains no files');
+        try {
+            await runChecks('foo/bar');
+        } catch (e) {
+            expect(e).toEqual(new Error('source path folder contains no files'));
+        }
     });
 
-    test('fails when dashboard uid is not found', () => {
+    test('fails when dashboard uid is not found', async () => {
         util.pathExists = jest.fn().mockReturnValue(true);
         util.getFolders = jest.fn().mockReturnValue(['etc']);
         util.getFolderFiles = jest.fn().mockReturnValue(['xyz']);
@@ -80,12 +91,14 @@ describe('test runChecks()', () => {
             throw new Error(messages.join(' '));
         });
 
-        expect(() => {
-            runChecks('foo/bar');
-        }).toThrow('dashboards found in the repo that are not valid for deployment');
+        try {
+            await runChecks('foo/bar');
+        } catch (e) {
+            expect(e).toEqual(new Error('dashboards found in the repo that are not valid for deployment'));
+        }
     });
 
-    test('fails when dashboard id is found', () => {
+    test('fails when dashboard id is found', async () => {
         util.pathExists = jest.fn().mockReturnValueOnce(true);
         util.getFolders = jest.fn().mockReturnValueOnce(['etc']);
         util.getFolderFiles = jest.fn().mockReturnValueOnce(['xyz']);
@@ -94,12 +107,14 @@ describe('test runChecks()', () => {
             throw new Error(messages.join(' '));
         });
 
-        expect(() => {
-            runChecks('foo/bar');
-        }).toThrow('dashboards found in the repo that are not valid for deployment');
+        try {
+            await runChecks('foo/bar');
+        } catch (e) {
+            expect(e).toEqual(new Error('dashboards found in the repo that are not valid for deployment'));
+        }
     });
 
-    test('fails when dashboard version is found', () => {
+    test('fails when dashboard version is found', async () => {
         util.pathExists = jest.fn().mockReturnValueOnce(true);
         util.getFolders = jest.fn().mockReturnValueOnce(['etc']);
         util.getFolderFiles = jest.fn().mockReturnValueOnce(['xyz']);
@@ -108,9 +123,11 @@ describe('test runChecks()', () => {
             throw new Error(messages.join(' '));
         });
 
-        expect(() => {
-            runChecks('foo/bar');
-        }).toThrow('dashboards found in the repo that are not valid for deployment');
+        try {
+            await runChecks('foo/bar');
+        } catch (e) {
+            expect(e).toEqual(new Error('dashboards found in the repo that are not valid for deployment'));
+        }
     });
 
     test('succeeds', () => {

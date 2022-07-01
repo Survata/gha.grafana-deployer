@@ -42,7 +42,12 @@ export namespace util {
      * @param path - the path to check.
      */
     export async function pathExists(path: string) {
-        return await fs.access(path);
+        try {
+            await fs.access(path);
+            return true;
+        } catch (e) {
+            return false;
+        }
     }
 
     /**

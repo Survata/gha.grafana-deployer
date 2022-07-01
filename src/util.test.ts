@@ -16,3 +16,21 @@ describe('test isTrue()', () => {
         expect(util.isTrue(true)).toBe(true);
     });
 });
+
+describe('test getFolders()', () => {
+    test('when found', async () => {
+        const folders: string[] = await util.getFolders('.');
+        expect(folders.length).toEqual(6);
+    });
+    test('when not found', async () => {
+        const folders: string[] = await util.getFolders('./src');
+        expect(folders.length).toEqual(0);
+    });
+});
+
+describe('test getFolderFiles()', () => {
+    test('when found', async () => {
+        const folders: string[] = await util.getFolderFiles('.', 'src');
+        expect(folders.length).toEqual(10);
+    });
+});

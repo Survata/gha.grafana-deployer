@@ -17,8 +17,7 @@ async function runChecks(sourcePath) {
     if (util_1.util.getGrafanaHost() === '') {
         util_1.util.reportAndFail('environment variable must be set', 'GRAFANA_HOST');
     }
-    let sourcePathExists = false;
-    await util_1.util.pathExists(sourcePath).then(() => (sourcePathExists = true));
+    const sourcePathExists = await util_1.util.pathExists(sourcePath);
     if (!sourcePathExists) {
         util_1.util.reportAndFail('source path must exist', sourcePath);
     }
@@ -122,7 +121,7 @@ async function deployDashboard(sourcePath, folder, folderId, file) {
     const grafanaDashboard = await grafana_1.grafana.getDashboard(uid);
     if (grafanaDashboard === undefined) {
         console.log('Creating dashboard in grafana');
-        grafana_1.grafana.importDashboard(dashboardJson, folderId);
+        await grafana_1.grafana.importDashboard(dashboardJson, folderId);
     }
     else {
         const workPath = util_1.util.pathResolve(sourcePath, folder, uid.concat('.json'));
@@ -133,7 +132,7 @@ async function deployDashboard(sourcePath, folder, folderId, file) {
         const hasDashboardChanged = git_1.git.diffDashboards(workPath, dashboardPath);
         if (hasDashboardChanged) {
             console.log('Updating dashboard in grafana');
-            grafana_1.grafana.importDashboard(dashboardJson, folderId);
+            await grafana_1.grafana.importDashboard(dashboardJson, folderId);
         }
         else {
             console.log('Dashboard is unchanged');
@@ -368,7 +367,13 @@ var util;
     }
     util.reportAndFail = reportAndFail;
     async function pathExists(path) {
-        return await fs.access(path);
+        try {
+            await fs.access(path);
+            return true;
+        }
+        catch (e) {
+            return false;
+        }
     }
     util.pathExists = pathExists;
     function pathResolve(...pathSegments) {

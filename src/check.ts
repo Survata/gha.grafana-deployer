@@ -29,8 +29,7 @@ export async function runChecks(sourcePath: string) {
     }
 
     // the source path must exist
-    let sourcePathExists: boolean = false;
-    await util.pathExists(sourcePath).then(() => (sourcePathExists = true));
+    const sourcePathExists: boolean = await util.pathExists(sourcePath);
     if (!sourcePathExists) {
         util.reportAndFail('source path must exist', sourcePath);
     }
@@ -68,6 +67,13 @@ async function checkDashboardsInRepo(sourcePath: string) {
     }
 }
 
+/**
+ * Check the repo folder and files.
+ *
+ * @param summary
+ * @param sourcePath
+ * @param folder
+ */
 async function checkFolder(summary: CheckSummary, sourcePath: string, folder: string) {
     console.log('Checking folder', folder);
     summary.folderCount++;
@@ -97,21 +103,3 @@ async function checkFolder(summary: CheckSummary, sourcePath: string, folder: st
         summary.foldersWithoutFilesCount++;
     }
 }
-
-// async function checkFile(summary: CheckSummary, sourcePath: string, folder: string, file: string) {
-//     console.log('Checking dashboard', file);
-//     const dashboardPath: string = util.pathResolve(sourcePath, folder, file);
-//     const dashboardJson = await util.readJsonFile(dashboardPath);
-//     if (dashboardJson['uid'] === undefined) {
-//         console.log('uid must exist');
-//         summary.failureCount++;
-//     }
-//     if (dashboardJson['id'] !== undefined) {
-//         console.log('id must not exist');
-//         summary.failureCount++;
-//     }
-//     if (dashboardJson['version'] !== undefined) {
-//         console.log('version must not exist');
-//         summary.failureCount++;
-//     }
-// }
