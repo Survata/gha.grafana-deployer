@@ -35,7 +35,7 @@ export namespace grafana {
      *
      * @param args
      */
-    export async function run(args: runArgs) {
+    export async function run(args: runArgs): Promise<void> {
         if (args.dryRun) {
             console.log('Performing dry run');
         }
@@ -49,17 +49,17 @@ export namespace grafana {
      *
      * @param folderName - the folder name.
      */
-    export async function getFolderId(folderName: string): Promise<number> {
-        const r: AxiosResponse = await get('/api/folders');
-        if (r.status !== 200) {
-            util.reportAndFail('call to get folders failed', getResponseError(r));
+    export async function getFolderId(folderName: string): Promise<number | any> {
+        try {
+            const r: AxiosResponse = await get('/api/folders');
+            const folders: any[] = r.data;
+            const folder: any = folders.find((p) => {
+                return p['title'] === folderName;
+            });
+            return folder === undefined ? -1 : folder['id'];
+        } catch (e: any) {
+            util.reportAndFail('call to get folders failed', getResponseError(e.response));
         }
-
-        const folders: any[] = r.data;
-        const folder: any = folders.find((p) => {
-            return p['title'] === folderName;
-        });
-        return folder === undefined ? undefined : folder['id'];
     }
 
     /**
@@ -68,15 +68,15 @@ export namespace grafana {
      * @param uid - the dashboard's uid.
      */
     export async function getDashboard(uid: string): Promise<any> {
-        const r: AxiosResponse = await get('/api/dashboards/uid/'.concat(uid));
-        if (r.status !== 200) {
-            if (r.status === 404) {
+        try {
+            const r: AxiosResponse = await get('/api/dashboards/uid/'.concat(uid));
+            return r.data['dashboard'];
+        } catch (e: any) {
+            if (e.response.status === 404) {
                 return undefined;
             }
-            util.reportAndFail('call to get dashboard failed', getResponseError(r));
+            util.reportAndFail('call to get dashboard failed', getResponseError(e.response));
         }
-
-        return r.data['dashboard'];
     }
 
     /**
@@ -84,14 +84,14 @@ export namespace grafana {
      *
      * @param folderName - the folder name.
      */
-    export async function createFolder(folderName: string) {
-        const res: AxiosResponse = await post('/api/folders', { title: folderName });
-        if (res.status !== 200) {
-            util.reportAndFail('create folder failed', getResponseError(res));
+    export async function createFolder(folderName: string): Promise<any> {
+        try {
+            const res: AxiosResponse = await post('/api/folders', { title: folderName });
+            const folder: any = res.data;
+            return folder['id'];
+        } catch (e: any) {
+            util.reportAndFail('create folder failed', getResponseError(e.response));
         }
-
-        const folder: any = JSON.parse(res.data);
-        return folder['id'];
     }
 
     /**
@@ -100,14 +100,15 @@ export namespace grafana {
      * @param dashboardContent - dashboard content, in JSON.
      * @param folderId - the folder id that holds the dashboard.
      */
-    export async function importDashboard(dashboardContent: any, folderId: number) {
-        const res: AxiosResponse = await post('/api/dashboards/import', {
-            dashboard: dashboardContent,
-            overwrite: true,
-            folderId: folderId,
-        });
-        if (res.status !== 200) {
-            util.reportAndFail('import dashboard failed', getResponseError(res));
+    export async function importDashboard(dashboardContent: any, folderId: number): Promise<void> {
+        try {
+            await post('/api/dashboards/import', {
+                dashboard: dashboardContent,
+                overwrite: true,
+                folderId: folderId,
+            });
+        } catch (e: any) {
+            util.reportAndFail('import dashboard failed', getResponseError(e.response));
         }
     }
 }

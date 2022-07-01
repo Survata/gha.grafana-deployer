@@ -99,7 +99,7 @@ exports.runDeployment = runDeployment;
 async function deployFolder(sourcePath, folder) {
     console.log('Deploying folder', folder);
     let folderId = await grafana_1.grafana.getFolderId(folder);
-    if (folderId === undefined) {
+    if (folderId === -1) {
         console.log('Creating folder in grafana');
         folderId = await grafana_1.grafana.createFolder(folder);
     }
@@ -216,45 +216,53 @@ var grafana;
     }
     grafana.run = run;
     async function getFolderId(folderName) {
-        const r = await get('/api/folders');
-        if (r.status !== 200) {
-            util_1.util.reportAndFail('call to get folders failed', getResponseError(r));
+        try {
+            const r = await get('/api/folders');
+            const folders = r.data;
+            const folder = folders.find((p) => {
+                return p['title'] === folderName;
+            });
+            return folder === undefined ? -1 : folder['id'];
         }
-        const folders = r.data;
-        const folder = folders.find((p) => {
-            return p['title'] === folderName;
-        });
-        return folder === undefined ? undefined : folder['id'];
+        catch (e) {
+            util_1.util.reportAndFail('call to get folders failed', getResponseError(e.response));
+        }
     }
     grafana.getFolderId = getFolderId;
     async function getDashboard(uid) {
-        const r = await get('/api/dashboards/uid/'.concat(uid));
-        if (r.status !== 200) {
-            if (r.status === 404) {
+        try {
+            const r = await get('/api/dashboards/uid/'.concat(uid));
+            return r.data['dashboard'];
+        }
+        catch (e) {
+            if (e.response.status === 404) {
                 return undefined;
             }
-            util_1.util.reportAndFail('call to get dashboard failed', getResponseError(r));
+            util_1.util.reportAndFail('call to get dashboard failed', getResponseError(e.response));
         }
-        return r.data['dashboard'];
     }
     grafana.getDashboard = getDashboard;
     async function createFolder(folderName) {
-        const res = await post('/api/folders', { title: folderName });
-        if (res.status !== 200) {
-            util_1.util.reportAndFail('create folder failed', getResponseError(res));
+        try {
+            const res = await post('/api/folders', { title: folderName });
+            const folder = res.data;
+            return folder['id'];
         }
-        const folder = JSON.parse(res.data);
-        return folder['id'];
+        catch (e) {
+            util_1.util.reportAndFail('create folder failed', getResponseError(e.response));
+        }
     }
     grafana.createFolder = createFolder;
     async function importDashboard(dashboardContent, folderId) {
-        const res = await post('/api/dashboards/import', {
-            dashboard: dashboardContent,
-            overwrite: true,
-            folderId: folderId,
-        });
-        if (res.status !== 200) {
-            util_1.util.reportAndFail('import dashboard failed', getResponseError(res));
+        try {
+            await post('/api/dashboards/import', {
+                dashboard: dashboardContent,
+                overwrite: true,
+                folderId: folderId,
+            });
+        }
+        catch (e) {
+            util_1.util.reportAndFail('import dashboard failed', getResponseError(e.response));
         }
     }
     grafana.importDashboard = importDashboard;

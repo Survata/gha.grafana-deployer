@@ -18,7 +18,7 @@ describe('test runDeployment()', () => {
 
     test('creates a folder', async () => {
         util.getFolders = jest.fn().mockReturnValueOnce(['foo']);
-        grafana.getFolderId = jest.fn();
+        grafana.getFolderId = jest.fn().mockReturnValueOnce(-1);
         grafana.createFolder = jest.fn();
         util.getFolderFiles = jest.fn().mockReturnValueOnce([]);
 

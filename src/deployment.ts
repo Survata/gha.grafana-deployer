@@ -34,10 +34,10 @@ export async function runDeployment(args: runArgs) {
  */
 async function deployFolder(sourcePath: string, folder: string) {
     console.log('Deploying folder', folder);
-    let folderId: Number = await grafana.getFolderId(folder);
+    let folderId: number = await grafana.getFolderId(folder);
 
     // deploy the folder, create it if it doesn't exist
-    if (folderId === undefined) {
+    if (folderId === -1) {
         console.log('Creating folder in grafana');
         folderId = await grafana.createFolder(folder);
     } else {
