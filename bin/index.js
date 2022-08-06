@@ -1,439 +1,6 @@
 /******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 4550:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.runChecks = void 0;
-const util_1 = __nccwpck_require__(744);
-async function runChecks(sourcePath) {
-    console.log('Running checks against', sourcePath, '...');
-    if (util_1.util.getGrafanaAuthorization() === '') {
-        util_1.util.reportAndFail('environment variable must be set', 'GRAFANA_AUTHORIZATION');
-    }
-    if (util_1.util.getGrafanaHost() === '') {
-        util_1.util.reportAndFail('environment variable must be set', 'GRAFANA_HOST');
-    }
-    const sourcePathExists = await util_1.util.pathExists(sourcePath);
-    if (!sourcePathExists) {
-        util_1.util.reportAndFail('source path must exist', sourcePath);
-    }
-    await checkDashboardsInRepo(sourcePath);
-    console.log('All checks passed\n');
-}
-exports.runChecks = runChecks;
-async function checkDashboardsInRepo(sourcePath) {
-    const summary = { folderCount: 0, foldersWithoutFilesCount: 0, failureCount: 0 };
-    const folders = await util_1.util.getFolders(sourcePath);
-    const promises = folders.map(async (folder) => {
-        await checkFolder(summary, sourcePath, folder);
-    });
-    await Promise.all(promises);
-    if (summary.folderCount === 0) {
-        util_1.util.reportAndFail('source path contains no folders');
-    }
-    if (summary.foldersWithoutFilesCount > 0) {
-        util_1.util.reportAndFail('source path folder contains no files');
-    }
-    if (summary.failureCount > 0) {
-        util_1.util.reportAndFail('dashboards found in the repo that are not valid for deployment');
-    }
-}
-async function checkFolder(summary, sourcePath, folder) {
-    console.log('Checking folder', folder);
-    summary.folderCount++;
-    let fileCount = 0;
-    const files = await util_1.util.getFolderFiles(sourcePath, folder);
-    const promises = files.map(async (file) => {
-        fileCount++;
-        console.log('Checking dashboard', file);
-        const dashboardPath = util_1.util.pathResolve(sourcePath, folder, file);
-        const dashboardJson = await util_1.util.readJsonFile(dashboardPath);
-        if (dashboardJson['uid'] === undefined) {
-            console.log('uid must exist');
-            summary.failureCount++;
-        }
-        if (dashboardJson['id'] !== undefined) {
-            console.log('id must not exist');
-            summary.failureCount++;
-        }
-        if (dashboardJson['version'] !== undefined) {
-            console.log('version must not exist');
-            summary.failureCount++;
-        }
-    });
-    await Promise.all(promises);
-    if (fileCount === 0) {
-        summary.foldersWithoutFilesCount++;
-    }
-}
-
-
-/***/ }),
-
-/***/ 292:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.runDeployment = void 0;
-const git_1 = __nccwpck_require__(4002);
-const grafana_1 = __nccwpck_require__(8907);
-const util_1 = __nccwpck_require__(744);
-async function runDeployment(args) {
-    if (args.dryRun) {
-        return;
-    }
-    console.log('Running deployment against', util_1.util.getGrafanaHost(), '...');
-    const folders = await util_1.util.getFolders(args.sourcePath);
-    const promises = folders.map(async (folder) => {
-        await deployFolder(args.sourcePath, folder);
-    });
-    await Promise.all(promises);
-}
-exports.runDeployment = runDeployment;
-async function deployFolder(sourcePath, folder) {
-    console.log('Deploying folder', folder);
-    let folderId = await grafana_1.grafana.getFolderId(folder);
-    if (folderId === -1) {
-        console.log('Creating folder in grafana');
-        folderId = await grafana_1.grafana.createFolder(folder);
-    }
-    else {
-        console.log('Folder exists in grafana');
-    }
-    const folders = await util_1.util.getFolderFiles(sourcePath, folder);
-    const promises = folders.map(async (file) => {
-        await deployDashboard(sourcePath, folder, folderId.valueOf(), file);
-    });
-    await Promise.all(promises);
-}
-async function deployDashboard(sourcePath, folder, folderId, file) {
-    console.log('Deploying dashboard', file);
-    const key = folder.concat('/', file);
-    const dashboardPath = util_1.util.pathResolve(sourcePath, key);
-    const dashboardJson = await util_1.util.readJsonFile(dashboardPath);
-    const uid = dashboardJson['uid'];
-    const grafanaDashboard = await grafana_1.grafana.getDashboard(uid);
-    if (grafanaDashboard === undefined) {
-        console.log('Creating dashboard in grafana');
-        await grafana_1.grafana.importDashboard(dashboardJson, folderId);
-    }
-    else {
-        const workPath = util_1.util.pathResolve(sourcePath, folder, uid.concat('.json'));
-        await util_1.util.rmFile(workPath);
-        delete grafanaDashboard['id'];
-        delete grafanaDashboard['version'];
-        await util_1.util.writeJsonFile(workPath, grafanaDashboard);
-        const hasDashboardChanged = git_1.git.diffDashboards(workPath, dashboardPath);
-        if (hasDashboardChanged) {
-            console.log('Updating dashboard in grafana');
-            await grafana_1.grafana.importDashboard(dashboardJson, folderId);
-        }
-        else {
-            console.log('Dashboard is unchanged');
-        }
-        await util_1.util.rmFile(workPath);
-    }
-}
-
-
-/***/ }),
-
-/***/ 4002:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.git = void 0;
-const child_process_1 = __nccwpck_require__(2081);
-var git;
-(function (git) {
-    function diffDashboards(existingDashboardPath, repoDashboardPath) {
-        const command = 'git diff --no-index --ignore-all-space "'.concat(existingDashboardPath, '" "', repoDashboardPath, '" || true');
-        const results = execCommand(command);
-        return results.length > 0;
-    }
-    git.diffDashboards = diffDashboards;
-})(git = exports.git || (exports.git = {}));
-function execCommand(command) {
-    try {
-        return (0, child_process_1.execSync)(command, { stdio: ['pipe', 'pipe', 'ignore'] })
-            .toString()
-            .trim();
-    }
-    catch (ex) {
-        return 'unknown';
-    }
-}
-
-
-/***/ }),
-
-/***/ 8907:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.grafana = void 0;
-const util_1 = __nccwpck_require__(744);
-const deployment_1 = __nccwpck_require__(292);
-const check_1 = __nccwpck_require__(4550);
-const axios_1 = __importDefault(__nccwpck_require__(7126));
-var grafana;
-(function (grafana) {
-    function setupCommand(program) {
-        program
-            .command('deploy', { isDefault: true })
-            .description('deploys to grafana')
-            .option('-d, --dry-run', 'performs a dry run of the deployment')
-            .option('-s, --sourcePath <path>', 'specifies the source path to deploy', './monitoring')
-            .action(async (options) => {
-            const args = {
-                dryRun: util_1.util.isTrue(options.dryRun),
-                sourcePath: options.sourcePath,
-            };
-            await run(args);
-        });
-    }
-    grafana.setupCommand = setupCommand;
-    async function run(args) {
-        if (args.dryRun) {
-            console.log('Performing dry run');
-        }
-        await (0, check_1.runChecks)(args.sourcePath);
-        await (0, deployment_1.runDeployment)(args);
-        console.log('Run succeeded');
-    }
-    grafana.run = run;
-    async function getFolderId(folderName) {
-        try {
-            const r = await get('/api/folders');
-            const folders = r.data;
-            const folder = folders.find((p) => {
-                return p['title'] === folderName;
-            });
-            return folder === undefined ? -1 : folder['id'];
-        }
-        catch (e) {
-            util_1.util.reportAndFail('call to get folders failed', getResponseError(e.response));
-        }
-    }
-    grafana.getFolderId = getFolderId;
-    async function getDashboard(uid) {
-        try {
-            const r = await get('/api/dashboards/uid/'.concat(uid));
-            return r.data['dashboard'];
-        }
-        catch (e) {
-            if (e.response.status === 404) {
-                return undefined;
-            }
-            util_1.util.reportAndFail('call to get dashboard failed', getResponseError(e.response));
-        }
-    }
-    grafana.getDashboard = getDashboard;
-    async function createFolder(folderName) {
-        try {
-            const res = await post('/api/folders', { title: folderName });
-            const folder = res.data;
-            return folder['id'];
-        }
-        catch (e) {
-            util_1.util.reportAndFail('create folder failed', getResponseError(e.response));
-        }
-    }
-    grafana.createFolder = createFolder;
-    async function importDashboard(dashboardContent, folderId) {
-        try {
-            await post('/api/dashboards/import', {
-                dashboard: dashboardContent,
-                overwrite: true,
-                folderId: folderId,
-            });
-        }
-        catch (e) {
-            util_1.util.reportAndFail('import dashboard failed', getResponseError(e.response));
-        }
-    }
-    grafana.importDashboard = importDashboard;
-})(grafana = exports.grafana || (exports.grafana = {}));
-async function get(path) {
-    return axios_1.default.get('http://'.concat(util_1.util.getGrafanaHost(), path), {
-        headers: {
-            Authorization: getAuthorization(),
-        },
-    });
-}
-async function post(path, data) {
-    return axios_1.default.post('http://'.concat(util_1.util.getGrafanaHost(), path), data, {
-        headers: {
-            Accept: 'application/json',
-            Authorization: getAuthorization(),
-            'Content-Type': 'application/json',
-        },
-    });
-}
-function getAuthorization() {
-    return 'Basic '.concat(Buffer.from(util_1.util.getGrafanaAuthorization()).toString('base64'));
-}
-function getResponseError(res) {
-    return { statusCode: String(res.status), body: res.data };
-}
-
-
-/***/ }),
-
-/***/ 212:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-const core = __importStar(__nccwpck_require__(5127));
-const util_1 = __nccwpck_require__(744);
-const grafana_1 = __nccwpck_require__(8907);
-const commander_1 = __nccwpck_require__(1662);
-if (util_1.util.isTrue(process.env.GITHUB_ACTIONS)) {
-    const args = {
-        dryRun: util_1.util.isTrue(core.getInput('dryRun')),
-        sourcePath: core.getInput('sourcePath'),
-    };
-    grafana_1.grafana.run(args).then();
-}
-else {
-    grafana_1.grafana.setupCommand(commander_1.program);
-    commander_1.program.parse(process.argv);
-}
-
-
-/***/ }),
-
-/***/ 744:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
-
-"use strict";
-
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.util = void 0;
-const fs = (__nccwpck_require__(7147).promises);
-const path_1 = __importDefault(__nccwpck_require__(1017));
-var util;
-(function (util) {
-    function isTrue(val) {
-        if (val === undefined) {
-            return false;
-        }
-        switch (val) {
-            case 'true':
-            case '1':
-            case true:
-                return true;
-            default:
-                return false;
-        }
-    }
-    util.isTrue = isTrue;
-    function reportAndFail(...messages) {
-        console.log('Run failed due to', messages);
-        process.exit(1);
-    }
-    util.reportAndFail = reportAndFail;
-    async function pathExists(path) {
-        try {
-            await fs.access(path);
-            return true;
-        }
-        catch (e) {
-            return false;
-        }
-    }
-    util.pathExists = pathExists;
-    function pathResolve(...pathSegments) {
-        return path_1.default.resolve(...pathSegments);
-    }
-    util.pathResolve = pathResolve;
-    async function getFolders(sourcePath) {
-        const folders = [];
-        const entries = await fs.readdir(sourcePath);
-        const promises = entries.map(async (directory) => {
-            const directoryPath = path_1.default.resolve(sourcePath, directory);
-            const entryStats = await fs.lstat(directoryPath);
-            if (entryStats.isDirectory()) {
-                folders.push(directory);
-            }
-        });
-        await Promise.all(promises);
-        return folders;
-    }
-    util.getFolders = getFolders;
-    async function getFolderFiles(sourcePath, folder) {
-        const folderPath = path_1.default.resolve(sourcePath, folder);
-        return fs.readdir(folderPath);
-    }
-    util.getFolderFiles = getFolderFiles;
-    function getGrafanaAuthorization() {
-        return process.env.GRAFANA_AUTHORIZATION || '';
-    }
-    util.getGrafanaAuthorization = getGrafanaAuthorization;
-    function getGrafanaHost() {
-        return process.env.GRAFANA_HOST || '';
-    }
-    util.getGrafanaHost = getGrafanaHost;
-    async function rmFile(path) {
-        await fs.rm(path, { force: true });
-    }
-    util.rmFile = rmFile;
-    async function readJsonFile(path) {
-        const rawData = await fs.readFile(path);
-        return JSON.parse(rawData.toString());
-    }
-    util.readJsonFile = readJsonFile;
-    async function writeJsonFile(path, data) {
-        const rawData = JSON.stringify(data, null, 2);
-        await fs.writeFile(path, rawData);
-    }
-    util.writeJsonFile = writeJsonFile;
-})(util = exports.util || (exports.util = {}));
-
-
-/***/ }),
-
 /***/ 5604:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -11960,17 +11527,444 @@ module.exports = JSON.parse('{"application/1d-interleaved-parityfec":{"source":"
 /******/ 	}
 /******/ 	
 /************************************************************************/
+/******/ 	/* webpack/runtime/compat get default export */
+/******/ 	(() => {
+/******/ 		// getDefaultExport function for compatibility with non-harmony modules
+/******/ 		__nccwpck_require__.n = (module) => {
+/******/ 			var getter = module && module.__esModule ?
+/******/ 				() => (module['default']) :
+/******/ 				() => (module);
+/******/ 			__nccwpck_require__.d(getter, { a: getter });
+/******/ 			return getter;
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/define property getters */
+/******/ 	(() => {
+/******/ 		// define getter functions for harmony exports
+/******/ 		__nccwpck_require__.d = (exports, definition) => {
+/******/ 			for(var key in definition) {
+/******/ 				if(__nccwpck_require__.o(definition, key) && !__nccwpck_require__.o(exports, key)) {
+/******/ 					Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+/******/ 				}
+/******/ 			}
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/hasOwnProperty shorthand */
+/******/ 	(() => {
+/******/ 		__nccwpck_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/make namespace object */
+/******/ 	(() => {
+/******/ 		// define __esModule on exports
+/******/ 		__nccwpck_require__.r = (exports) => {
+/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 			}
+/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 		};
+/******/ 	})();
+/******/ 	
 /******/ 	/* webpack/runtime/compat */
 /******/ 	
 /******/ 	if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = __dirname + "/";
 /******/ 	
 /************************************************************************/
-/******/ 	
-/******/ 	// startup
-/******/ 	// Load entry module and return exports
-/******/ 	// This entry module is referenced by other modules so it can't be inlined
-/******/ 	var __webpack_exports__ = __nccwpck_require__(212);
-/******/ 	module.exports = __webpack_exports__;
-/******/ 	
+var __webpack_exports__ = {};
+// This entry need to be wrapped in an IIFE because it need to be in strict mode.
+(() => {
+"use strict";
+// ESM COMPAT FLAG
+__nccwpck_require__.r(__webpack_exports__);
+
+// EXTERNAL MODULE: ./node_modules/@actions/core/lib/core.js
+var core = __nccwpck_require__(5127);
+// EXTERNAL MODULE: external "path"
+var external_path_ = __nccwpck_require__(1017);
+var external_path_default = /*#__PURE__*/__nccwpck_require__.n(external_path_);
+;// CONCATENATED MODULE: ./dist/util.js
+
+const fs = (__nccwpck_require__(7147).promises);
+
+var util;
+(function (util) {
+    function isTrue(val) {
+        if (val === undefined) {
+            return false;
+        }
+        switch (val) {
+            case 'true':
+            case '1':
+            case true:
+                return true;
+            default:
+                return false;
+        }
+    }
+    util.isTrue = isTrue;
+    function reportAndFail(...messages) {
+        console.log('Run failed due to', messages);
+        process.exit(1);
+    }
+    util.reportAndFail = reportAndFail;
+    async function pathExists(path) {
+        try {
+            await fs.access(path);
+            return true;
+        }
+        catch (e) {
+            return false;
+        }
+    }
+    util.pathExists = pathExists;
+    function pathResolve(...pathSegments) {
+        return external_path_default().resolve(...pathSegments);
+    }
+    util.pathResolve = pathResolve;
+    async function getFolders(sourcePath) {
+        const folders = [];
+        const entries = await fs.readdir(sourcePath);
+        const promises = entries.map(async (directory) => {
+            const directoryPath = external_path_default().resolve(sourcePath, directory);
+            const entryStats = await fs.lstat(directoryPath);
+            if (entryStats.isDirectory()) {
+                folders.push(directory);
+            }
+        });
+        await Promise.all(promises);
+        return folders;
+    }
+    util.getFolders = getFolders;
+    async function getFolderFiles(sourcePath, folder) {
+        const folderPath = external_path_default().resolve(sourcePath, folder);
+        return fs.readdir(folderPath);
+    }
+    util.getFolderFiles = getFolderFiles;
+    function getGrafanaAuthorization() {
+        return process.env.GRAFANA_AUTHORIZATION || '';
+    }
+    util.getGrafanaAuthorization = getGrafanaAuthorization;
+    function getGrafanaHost() {
+        return process.env.GRAFANA_HOST || '';
+    }
+    util.getGrafanaHost = getGrafanaHost;
+    async function rmFile(path) {
+        await fs.rm(path, { force: true });
+    }
+    util.rmFile = rmFile;
+    async function readJsonFile(path) {
+        const rawData = await fs.readFile(path);
+        return JSON.parse(rawData.toString());
+    }
+    util.readJsonFile = readJsonFile;
+    async function writeJsonFile(path, data) {
+        const rawData = JSON.stringify(data, null, 2);
+        await fs.writeFile(path, rawData);
+    }
+    util.writeJsonFile = writeJsonFile;
+})(util || (util = {}));
+
+// EXTERNAL MODULE: external "child_process"
+var external_child_process_ = __nccwpck_require__(2081);
+;// CONCATENATED MODULE: ./dist/git.js
+
+
+var git;
+(function (git) {
+    function diffDashboards(existingDashboardPath, repoDashboardPath) {
+        const command = 'git diff --no-index --ignore-all-space "'.concat(existingDashboardPath, '" "', repoDashboardPath, '" || true');
+        const results = execCommand(command);
+        return results.length > 0;
+    }
+    git.diffDashboards = diffDashboards;
+})(git || (git = {}));
+function execCommand(command) {
+    try {
+        return (0,external_child_process_.execSync)(command, { stdio: ['pipe', 'pipe', 'ignore'] })
+            .toString()
+            .trim();
+    }
+    catch (ex) {
+        return 'unknown';
+    }
+}
+
+;// CONCATENATED MODULE: ./dist/deployment.js
+
+
+
+
+async function runDeployment(args) {
+    if (args.dryRun) {
+        return;
+    }
+    console.log('Running deployment against', util.getGrafanaHost(), '...');
+    const folders = await util.getFolders(args.sourcePath);
+    const promises = folders.map(async (folder) => {
+        await deployFolder(args.sourcePath, folder);
+    });
+    await Promise.all(promises);
+}
+async function deployFolder(sourcePath, folder) {
+    console.log('Deploying folder', folder);
+    let folderId = await grafana.getFolderId(folder);
+    if (folderId === -1) {
+        console.log('Creating folder in grafana');
+        folderId = await grafana.createFolder(folder);
+    }
+    else {
+        console.log('Folder exists in grafana');
+    }
+    const folders = await util.getFolderFiles(sourcePath, folder);
+    const promises = folders.map(async (file) => {
+        await deployDashboard(sourcePath, folder, folderId.valueOf(), file);
+    });
+    await Promise.all(promises);
+}
+async function deployDashboard(sourcePath, folder, folderId, file) {
+    console.log('Deploying dashboard', file);
+    const key = folder.concat('/', file);
+    const dashboardPath = util.pathResolve(sourcePath, key);
+    const dashboardJson = await util.readJsonFile(dashboardPath);
+    const uid = dashboardJson['uid'];
+    const grafanaDashboard = await grafana.getDashboard(uid);
+    if (grafanaDashboard === undefined) {
+        console.log('Creating dashboard in grafana');
+        await grafana.importDashboard(dashboardJson, folderId);
+    }
+    else {
+        const workPath = util.pathResolve(sourcePath, folder, uid.concat('.json'));
+        await util.rmFile(workPath);
+        delete grafanaDashboard['id'];
+        delete grafanaDashboard['version'];
+        await util.writeJsonFile(workPath, grafanaDashboard);
+        const hasDashboardChanged = git.diffDashboards(workPath, dashboardPath);
+        if (hasDashboardChanged) {
+            console.log('Updating dashboard in grafana');
+            await grafana.importDashboard(dashboardJson, folderId);
+        }
+        else {
+            console.log('Dashboard is unchanged');
+        }
+        await util.rmFile(workPath);
+    }
+}
+
+;// CONCATENATED MODULE: ./dist/check.js
+
+
+async function runChecks(sourcePath) {
+    console.log('Running checks against', sourcePath, '...');
+    if (util.getGrafanaAuthorization() === '') {
+        util.reportAndFail('environment variable must be set', 'GRAFANA_AUTHORIZATION');
+    }
+    if (util.getGrafanaHost() === '') {
+        util.reportAndFail('environment variable must be set', 'GRAFANA_HOST');
+    }
+    const sourcePathExists = await util.pathExists(sourcePath);
+    if (!sourcePathExists) {
+        util.reportAndFail('source path must exist', sourcePath);
+    }
+    await checkDashboardsInRepo(sourcePath);
+    console.log('All checks passed\n');
+}
+async function checkDashboardsInRepo(sourcePath) {
+    const summary = { folderCount: 0, foldersWithoutFilesCount: 0, failureCount: 0 };
+    const folders = await util.getFolders(sourcePath);
+    const promises = folders.map(async (folder) => {
+        await checkFolder(summary, sourcePath, folder);
+    });
+    await Promise.all(promises);
+    if (summary.folderCount === 0) {
+        util.reportAndFail('source path contains no folders');
+    }
+    if (summary.foldersWithoutFilesCount > 0) {
+        util.reportAndFail('source path folder contains no files');
+    }
+    if (summary.failureCount > 0) {
+        util.reportAndFail('dashboards found in the repo that are not valid for deployment');
+    }
+}
+async function checkFolder(summary, sourcePath, folder) {
+    console.log('Checking folder', folder);
+    summary.folderCount++;
+    let fileCount = 0;
+    const files = await util.getFolderFiles(sourcePath, folder);
+    const promises = files.map(async (file) => {
+        fileCount++;
+        console.log('Checking dashboard', file);
+        const dashboardPath = util.pathResolve(sourcePath, folder, file);
+        const dashboardJson = await util.readJsonFile(dashboardPath);
+        if (dashboardJson['uid'] === undefined) {
+            console.log('uid must exist');
+            summary.failureCount++;
+        }
+        if (dashboardJson['id'] !== undefined) {
+            console.log('id must not exist');
+            summary.failureCount++;
+        }
+        if (dashboardJson['version'] !== undefined) {
+            console.log('version must not exist');
+            summary.failureCount++;
+        }
+    });
+    await Promise.all(promises);
+    if (fileCount === 0) {
+        summary.foldersWithoutFilesCount++;
+    }
+}
+
+// EXTERNAL MODULE: ./node_modules/axios/index.js
+var axios = __nccwpck_require__(7126);
+var axios_default = /*#__PURE__*/__nccwpck_require__.n(axios);
+;// CONCATENATED MODULE: ./dist/grafana.js
+
+
+
+
+
+var grafana;
+(function (grafana) {
+    function setupCommand(program) {
+        program
+            .command('deploy', { isDefault: true })
+            .description('deploys to grafana')
+            .option('-d, --dry-run', 'performs a dry run of the deployment')
+            .option('-s, --sourcePath <path>', 'specifies the source path to deploy', './monitoring')
+            .action(async (options) => {
+            const args = {
+                dryRun: util.isTrue(options.dryRun),
+                sourcePath: options.sourcePath,
+            };
+            await run(args);
+        });
+    }
+    grafana.setupCommand = setupCommand;
+    async function run(args) {
+        if (args.dryRun) {
+            console.log('Performing dry run');
+        }
+        await runChecks(args.sourcePath);
+        await runDeployment(args);
+        console.log('Run succeeded');
+    }
+    grafana.run = run;
+    async function getFolderId(folderName) {
+        try {
+            const r = await get('/api/folders');
+            const folders = r.data;
+            const folder = folders.find((p) => {
+                return p['title'] === folderName;
+            });
+            return folder === undefined ? -1 : folder['id'];
+        }
+        catch (e) {
+            util.reportAndFail('call to get folders failed', getResponseError(e.response));
+        }
+    }
+    grafana.getFolderId = getFolderId;
+    async function getDashboard(uid) {
+        try {
+            const r = await get('/api/dashboards/uid/'.concat(uid));
+            return r.data['dashboard'];
+        }
+        catch (e) {
+            if (e.response.status === 404) {
+                return undefined;
+            }
+            util.reportAndFail('call to get dashboard failed', getResponseError(e.response));
+        }
+    }
+    grafana.getDashboard = getDashboard;
+    async function createFolder(folderName) {
+        try {
+            const res = await post('/api/folders', { title: folderName });
+            const folder = res.data;
+            return folder['id'];
+        }
+        catch (e) {
+            util.reportAndFail('create folder failed', getResponseError(e.response));
+        }
+    }
+    grafana.createFolder = createFolder;
+    async function importDashboard(dashboardContent, folderId) {
+        try {
+            await post('/api/dashboards/import', {
+                dashboard: dashboardContent,
+                overwrite: true,
+                folderId: folderId,
+            });
+        }
+        catch (e) {
+            util.reportAndFail('import dashboard failed', getResponseError(e.response));
+        }
+    }
+    grafana.importDashboard = importDashboard;
+})(grafana || (grafana = {}));
+async function get(path) {
+    return axios_default().get('http://'.concat(util.getGrafanaHost(), path), {
+        headers: {
+            Authorization: getAuthorization(),
+        },
+    });
+}
+async function post(path, data) {
+    return axios_default().post('http://'.concat(util.getGrafanaHost(), path), data, {
+        headers: {
+            Accept: 'application/json',
+            Authorization: getAuthorization(),
+            'Content-Type': 'application/json',
+        },
+    });
+}
+function getAuthorization() {
+    return 'Basic '.concat(Buffer.from(util.getGrafanaAuthorization()).toString('base64'));
+}
+function getResponseError(res) {
+    return { statusCode: String(res.status), body: res.data };
+}
+
+// EXTERNAL MODULE: ./node_modules/commander/index.js
+var commander = __nccwpck_require__(1662);
+;// CONCATENATED MODULE: ./node_modules/commander/esm.mjs
+
+
+// wrapper to provide named exports for ESM.
+const {
+  program,
+  createCommand,
+  createArgument,
+  createOption,
+  CommanderError,
+  InvalidArgumentError,
+  Command,
+  Argument,
+  Option,
+  Help
+} = commander;
+
+;// CONCATENATED MODULE: ./dist/index.js
+
+
+
+
+
+if (util.isTrue(process.env.GITHUB_ACTIONS)) {
+    const args = {
+        dryRun: util.isTrue(core.getInput('dryRun')),
+        sourcePath: core.getInput('sourcePath'),
+    };
+    grafana.run(args).then();
+}
+else {
+    grafana.setupCommand(program);
+    program.parse(process.argv);
+}
+
+})();
+
+module.exports = __webpack_exports__;
 /******/ })()
 ;
